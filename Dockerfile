@@ -10,7 +10,7 @@ RUN mkdir -p /root/.R && \
     echo "CXX11FLAGS += -O2"        >> /root/.R/Makevars && \
     echo "CXXFLAGS += -O2"          >> /root/.R/Makevars
 
-# Install essential system deps (including NLopt & CMake for nloptr) and available CRAN binary packages
+# Install essential system deps (including NLopt & CMake for nloptr)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev python3-pip python3-setuptools python3-wheel \
     build-essential gfortran libgsl-dev \
@@ -20,17 +20,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1-dev libfribidi-dev libharfbuzz-dev \
     libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libcairo2-dev \
     libnlopt-dev cmake pkg-config \
-    r-cran-readr r-cran-readxl r-cran-polycor r-cran-psych r-cran-lavaan \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Install all remaining R packages (source build for those without binaries) in parallel
+# Install all R packages (source build for those without binaries) in parallel, without building vignettes
 RUN Rscript -e "options(Ncpus = parallel::detectCores()); \
-    install.packages('remotes', repos = 'https://cloud.r-project.org'); \
+    install.packages('remotes', repos = 'https://cloud.r-project.org', build_vignettes = FALSE); \
     remotes::install_cran(c('readr','readxl','polycor','psych','lavaan','simstudy','mokken','semTools','nloptr','mirt','ltm','lordif'), \
-                          dependencies=TRUE, repos='https://cloud.r-project.org'); \
+                          dependencies=TRUE, build_vignettes = FALSE, repos='https://cloud.r-project.org'); \
     pkgs <- c('readr','readxl','polycor','psych','lavaan','simstudy','mokken','semTools','nloptr','mirt','ltm','lordif'); \
     miss <- setdiff(pkgs, installed.packages()[,'Package']); \
     if(length(miss)) stop('Missing R packages: ', paste(miss, collapse=',')) else cat('All R packages installed ✔\n')"

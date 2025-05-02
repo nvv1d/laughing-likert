@@ -50,10 +50,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Use binary packages when possible and install lordif with system library paths
-RUN R -e "options(pkgType = 'binary', where available); \
+# First attempt with pak
+RUN R -e "options(pkgType = 'binary'); \
     options(install.packages.compile.from.source = 'never'); \
     Sys.setenv(CXXFLAGS = '-I/usr/include/eigen3'); \
-    pak::pkg_install('lordif', ask = FALSE)"
+    Sys.setenv(PKG_CONFIG_PATH = '/usr/lib/x86_64-linux-gnu/pkgconfig'); \
+    tryCatch({ \
+        pak::pkg_install('lordif', ask = FALSE, dependencies = TRUE) \
+    }, error = function(e) { \
+        cat('First method failed, trying alternate installation method\n') \
+    })"
+
+# Fallback method - direct installation with specific dependency handling
+RUN R -e "if (!require('lordif', quietly = TRUE)) { \
+        install.packages('mirt', repos = 'https://cloud.r-project.org'); \
+        install.packages('ltm', repos = 'https://cloud.r-project.org'); \
+        install.packages('https://cran.r-project.org/src/contrib/lordif_0.3-3.tar.gz', \
+                        repos = NULL, \
+                        type = 'source', \
+                        INSTALL_opts = c('--no-multiarch')) \
+    }"
 
 # Verify all packages are installed
 RUN R -e "required_pkgs <- c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken', 'semTools', 'lordif'); \

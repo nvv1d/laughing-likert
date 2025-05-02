@@ -1,67 +1,54 @@
-# 1. First stage - build R environment
-FROM r-base:4.2 AS r-base
+# Use Python slim image with R installation
+FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    r-base \
+    r-base-dev \
+    build-essential \
+    gfortran \
+    libblas-dev \
+    liblapack-dev \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
-    libfontconfig1-dev \
-    libharfbuzz-dev \
-    libfribidi-dev \
-    libgit2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure R to use parallel compilation
-RUN echo 'options(repos = c(CRAN = "https://cloud.r-project.org"), Ncpus = 4, timeout = 600)' > /etc/R/Rprofile.site
+# Configure R
+RUN mkdir -p /usr/lib/R/etc && \
+    echo 'options(repos = c(CRAN = "https://cloud.r-project.org"), Ncpus = 4, timeout = 600)' > /usr/lib/R/etc/Rprofile.site
 
-# Install required R packages
-RUN R -e "install.packages(c('readr', 'readxl', 'polycor', 'psych', 'lavaan'), dependencies = TRUE)" && \
-    R -e "install.packages('simstudy', dependencies = TRUE)" && \
-    R -e "install.packages('mokken', dependencies = TRUE)" && \
-    R -e "install.packages('semTools', dependencies = TRUE)" && \
-    R -e "install.packages('lordif', dependencies = TRUE)"
-
-# 2. Second stage - Python with R
-FROM python:3.11-slim
-
-# Copy R from first stage
-COPY --from=r-base /usr/local/lib/R /usr/local/lib/R
-COPY --from=r-base /usr/local/bin/R /usr/local/bin/R
-COPY --from=r-base /usr/local/bin/Rscript /usr/local/bin/Rscript
-COPY --from=r-base /etc/R /etc/R
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libcurl4 \
-    libssl3 \
-    libxml2 \
-    libgomp1 \
-    libfontconfig1 \
-    libharfbuzz0b \
-    libfribidi0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# 3. Working directory
+# Working directory
 WORKDIR /app
 
-# 4. Verify R & key packages
-RUN Rscript -e "lapply(c('readr', 'readxl', 'polycor', 'psych', 'simstudy', 'mokken', 'lavaan', 'semTools', 'lordif'), function(pkg) { cat(paste('Loading:', pkg, '\n')); suppressPackageStartupMessages(library(pkg, character.only=TRUE)) }); sessionInfo()"
+# Install required R packages one by one
+RUN Rscript -e "install.packages('readr')"
+RUN Rscript -e "install.packages('readxl')"
+RUN Rscript -e "install.packages('polycor')"
+RUN Rscript -e "install.packages('psych')"
+RUN Rscript -e "install.packages('lavaan')"
+RUN Rscript -e "install.packages('simstudy')"
+RUN Rscript -e "install.packages('mokken')"
+RUN Rscript -e "install.packages('semTools')"
+RUN Rscript -e "install.packages('lordif')"
 
-# 5. Copy & install Python requirements
+# Verify R package installation
+RUN Rscript -e "installed_pkgs <- installed.packages()[,'Package']; for(pkg in c('readr', 'readxl', 'polycor', 'psych', 'simstudy', 'mokken', 'lavaan', 'semTools', 'lordif')) { cat(pkg, ifelse(pkg %in% installed_pkgs, 'installed', 'NOT INSTALLED'), '\n') }"
+
+# Install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. Copy application code
+# Copy application code
 COPY app.py .
 COPY likert_pattern_analysis.py .
 COPY likert_analysis.R .
 COPY likert_hybrid.py .
 COPY utils.py .
 
-# 7. Copy templates
+# Copy templates
 COPY templates/ ./templates/
 
-# 8. Expose port & default command
+# Expose port and start command
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]

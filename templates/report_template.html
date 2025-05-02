@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Likert Scale Analysis Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .metric { font-weight: bold; }
+        .header { background-color: #2874a6; color: white; padding: 20px; border-radius: 5px; }
+        .section { margin: 30px 0; padding: 20px; border-radius: 5px; border: 1px solid #ddd; }
+        .item-list { list-style-type: none; padding: 0; }
+        .item-list li { margin: 5px 0; padding: 5px; background-color: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Likert Scale Analysis Report</h1>
+        <p>Generated on {{ timestamp }}</p>
+    </div>
+    
+    <div class="section">
+        <h2>Data Overview</h2>
+        <p>Number of responses: {{ data_shape[0] }}</p>
+        <p>Number of variables: {{ data_shape[1] }}</p>
+        <p>Number of Likert items identified: {{ likert_items|length }}</p>
+    </div>
+    
+    <div class="section">
+        <h2>Likert Items</h2>
+        <ul class="item-list">
+            {% for item in likert_items %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+        
+        {% if reverse_items %}
+        <h3>Reverse Coded Items</h3>
+        <ul class="item-list">
+            {% for item in reverse_items %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    
+    <div class="section">
+        <h2>Item Clusters</h2>
+        {% for sc, items in clusters.items() %}
+        <h3>Cluster {{ sc }} ({{ items|length }} items)</h3>
+        <ul class="item-list">
+            {% for item in items %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+        
+        {% if sc in alphas %}
+        <p class="metric">Cronbach's Alpha: {{ alphas[sc]|round(3) }}</p>
+        <p>95% Confidence Interval: [{{ alpha_ci[sc][0]|round(3) }}, {{ alpha_ci[sc][1]|round(3) }}]</p>
+        {% endif %}
+        {% endfor %}
+    </div>
+    
+    <div class="section">
+        <h2>Item Weights</h2>
+        <table>
+            <tr>
+                <th>Item</th>
+                <th>Weight</th>
+            </tr>
+            {% for item, weight in weights.items() %}
+            <tr>
+                <td>{{ item }}</td>
+                <td>{{ weight|round(4) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    
+    {% if simulated is not none %}
+    <div class="section">
+        <h2>Simulation Results</h2>
+        <p>Generated {{ simulated|length }} simulated responses based on extracted patterns.</p>
+        
+        {% if sim_stats is defined and sim_stats %}
+        <h3>Statistical Comparison: Real vs Simulated Data</h3>
+        
+        <table>
+            <tr>
+                <th>Metric Type</th>
+                <th>Similarity Score (%)</th>
+                <th>Assessment</th>
+            </tr>
+            {% if sim_stats.descriptives is defined %}
+            <tr>
+                <td>Descriptive Statistics</td>
+                <td>{{ sim_stats.descriptives|round(2) }}%</td>
+                <td>
+                    {% if sim_stats.descriptives >= 90 %}Excellent
+                    {% elif sim_stats.descriptives >= 75 %}Good
+                    {% elif sim_stats.descriptives >= 60 %}Fair
+                    {% else %}Poor
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            
+            {% if sim_stats.correlations is defined %}
+            <tr>
+                <td>Correlation Structure</td>
+                <td>{{ sim_stats.correlations|round(2) }}%</td>
+                <td>
+                    {% if sim_stats.correlations >= 90 %}Excellent
+                    {% elif sim_stats.correlations >= 75 %}Good
+                    {% elif sim_stats.correlations >= 60 %}Fair
+                    {% else %}Poor
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            
+            {% if sim_stats.distributions is defined %}
+            <tr>
+                <td>Distribution Similarity</td>
+                <td>{{ sim_stats.distributions|round(2) }}%</td>
+                <td>
+                    {% if sim_stats.distributions >= 90 %}Excellent
+                    {% elif sim_stats.distributions >= 75 %}Good
+                    {% elif sim_stats.distributions >= 60 %}Fair
+                    {% else %}Poor
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            
+            {% if sim_stats.reliability is defined %}
+            <tr>
+                <td>Reliability Metrics</td>
+                <td>{{ sim_stats.reliability|round(2) }}%</td>
+                <td>
+                    {% if sim_stats.reliability >= 90 %}Excellent
+                    {% elif sim_stats.reliability >= 75 %}Good
+                    {% elif sim_stats.reliability >= 60 %}Fair
+                    {% else %}Poor
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+            
+            {% if sim_stats.overall is defined %}
+            <tr style="font-weight: bold; background-color: #e6f3ff;">
+                <td>Overall Simulation Quality</td>
+                <td>{{ sim_stats.overall|round(2) }}%</td>
+                <td>
+                    {% if sim_stats.overall >= 90 %}Excellent
+                    {% elif sim_stats.overall >= 75 %}Good
+                    {% elif sim_stats.overall >= 60 %}Fair
+                    {% else %}Poor
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+        {% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="section">
+        <h2>Analysis Summary</h2>
+        <p>The analysis identified {{ clusters|length }} clusters of items, suggesting the presence of {{ clusters|length }} distinct constructs in the survey.</p>
+        <p>Reliability analysis indicates that 
+        {% set reliable_clusters = [] %}
+        {% for sc, alpha in alphas.items() %}
+            {% if alpha > 0.7 %}
+                {% set _ = reliable_clusters.append(sc) %}
+            {% endif %}
+        {% endfor %}
+        {{ reliable_clusters|length }} out of {{ alphas|length }} scales have good reliability (α > 0.7).
+        </p>
+    </div>
+    
+    <footer>
+        <p><small>This report was generated using the Likert Scale Pattern Analysis application.</small></p>
+    </footer>
+</body>
+</html>

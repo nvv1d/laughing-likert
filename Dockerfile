@@ -1,7 +1,7 @@
 # 1. Base image
 FROM python:3.11-slim@sha256:75a17dd6f00b277975715fc094c4a1570d512708de6bb4c5dc130814813ebfe4
 
-# 2. Install system dependencies & R
+# 2. Install system deps, R base, and Debian CRAN binaries
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential \
@@ -13,18 +13,27 @@ RUN apt-get update \
       libxml2-dev \
       r-base \
       r-base-dev \
+      r-cran-readr \
+      r-cran-readxl \
+      r-cran-polycor \
+      r-cran-psych \
+      r-cran-simstudy \
+      r-cran-mokken \
+      r-cran-lavaan \
+      r-cran-semintools \
  && rm -rf /var/lib/apt/lists/*
 
-# 3. Set working directory
+# 3. Working directory
 WORKDIR /app
 
-# 4. Install R packages
-RUN R -e "install.packages(c('readr', 'readxl', 'polycor', 'psych', 'simstudy', 'mokken', 'lordif', 'lavaan', 'semTools'), repos='https://cloud.r-project.org/')"
+# 4. Install any remaining R packages from CRAN
+#    (Debian doesn’t package 'lordif', so we install it from source here)
+RUN Rscript -e "install.packages('lordif', repos='https://cloud.r-project.org/')"
 
-# 5. (Optional) Verify R installation
-RUN which Rscript && Rscript --version
+# 5. Verify R & key packages
+RUN Rscript -e "library(readr); library(readxl); library(polycor); library(psych); library(simstudy); library(mokken); library(lavaan); library(semTools); library(lordif); sessionInfo()"
 
-# 6. Copy Python requirements & install
+# 6. Copy & install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -35,9 +44,9 @@ COPY likert_analysis.R .
 COPY likert_hybrid.py .
 COPY utils.py .
 
-# 8. Copy your templates folder
+# 8. Copy templates
 COPY templates/ ./templates/
 
-# 9. Expose port and default command (adjust if needed)
+# 9. Expose port & default command
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]

@@ -7,6 +7,5 @@ rpy2
 jinja2
 plotly
 networkx
-mokkenpy  # if exists, or remove
 pyirt
 pingouinstreamlit

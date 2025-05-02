@@ -1,5 +1,5 @@
 # 1. First stage - build R environment
-FROM rocker/r-ver:4.2 AS r-base
+FROM r-base:4.2 AS r-base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

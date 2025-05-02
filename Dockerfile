@@ -18,16 +18,26 @@ RUN apt-get update \
       r-cran-polycor \
       r-cran-psych \
       r-cran-lavaan \
+      # For faster downloads
+      ca-certificates \
+      apt-transport-https \
+      libfontconfig1-dev \
  && rm -rf /var/lib/apt/lists/*
+
+# Set CRAN mirror in Rprofile for reliability
+RUN echo 'options(repos = c(CRAN = "https://cloud.r-project.org"))' > /etc/R/Rprofile.site
 
 # 3. Working directory
 WORKDIR /app
 
-# 4. Install R packages from CRAN
-RUN Rscript -e "install.packages(c('simstudy', 'mokken', 'semTools', 'lordif'), repos='https://cloud.r-project.org/', dependencies=TRUE)"
+# 4. Install R packages from CRAN (in smaller batches with timeout)
+RUN Rscript -e "options(timeout=600); install.packages('simstudy', repos='https://cloud.r-project.org/', dependencies=TRUE, verbose=TRUE)"
+RUN Rscript -e "options(timeout=600); install.packages('mokken', repos='https://cloud.r-project.org/', dependencies=TRUE, verbose=TRUE)"
+RUN Rscript -e "options(timeout=600); install.packages('semTools', repos='https://cloud.r-project.org/', dependencies=TRUE, verbose=TRUE)"
+RUN Rscript -e "options(timeout=600); install.packages('lordif', repos='https://cloud.r-project.org/', dependencies=TRUE, verbose=TRUE)"
 
-# 5. Verify R & key packages
-RUN Rscript -e "library(readr); library(readxl); library(polycor); library(psych); library(simstudy); library(mokken); library(lavaan); library(semTools); library(lordif); sessionInfo()"
+# 5. Verify R & key packages (with more verbose output)
+RUN Rscript -e "for(pkg in c('readr', 'readxl', 'polycor', 'psych', 'simstudy', 'mokken', 'lavaan', 'semTools', 'lordif')) { cat(paste('Loading package:', pkg, '\n')); library(pkg, character.only=TRUE) }; sessionInfo()"
 
 # 6. Copy & install Python requirements
 COPY requirements.txt .

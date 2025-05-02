@@ -1,3 +1,4 @@
+```dockerfile
 # Start from standard R image with more built-in libraries
 FROM rocker/tidyverse:4.3
 
@@ -34,17 +35,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Working directory
 WORKDIR /app
 
-# Install R packages with a proven approach
+# Install R packages with a proven approach - removed 'type = binary'
 RUN R -e "install.packages('remotes', repos = 'https://cloud.r-project.org'); \
     remotes::install_cran(c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken'), \
-                         dependencies = TRUE, type = 'binary', repos = 'https://cloud.r-project.org'); \
+                         dependencies = TRUE, repos = 'https://cloud.r-project.org'); \
     remotes::install_cran('semTools', dependencies = TRUE, repos = 'https://cloud.r-project.org');"
 
 # Install lordif separately with specific dependencies
 RUN R -e "install.packages(c('mirt', 'ltm'), repos = 'https://cloud.r-project.org'); \
     install.packages('lordif', repos = 'https://cloud.r-project.org', \
-                   dependencies = TRUE, \
-                   INSTALL_opts = c('--no-multiarch'));"
+                   dependencies = TRUE);"
 
 # Verify R packages installation
 RUN R -e "required_pkgs <- c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken', 'semTools', 'lordif'); \
@@ -73,3 +73,4 @@ COPY templates/ ./templates/
 # Expose port and start command
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+```

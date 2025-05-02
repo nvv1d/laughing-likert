@@ -19,7 +19,7 @@ RUN apt-get update \
 WORKDIR /app
 
 # 4. Install R packages
-RUN Rscript -e "install.packages(c('psych','lavaan'), repos='https://cloud.r-project.org/')"
+RUN R -e "install.packages(c('readr', 'readxl', 'polycor', 'psych', 'simstudy', 'mokken', 'lordif', 'lavaan', 'semTools'), repos='https://cloud.r-project.org/')"
 
 # 5. (Optional) Verify R installation
 RUN which Rscript && Rscript --version

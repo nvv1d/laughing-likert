@@ -33,20 +33,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install R package manager and dependencies
-RUN R -e "\
-    install.packages('pak', repos = 'https://cloud.r-project.org'); \
-    pak::pkg_install(c('readr', 'readxl'), ask = FALSE); \
-    pak::pkg_install(c('polycor', 'psych'), ask = FALSE); \
-    pak::pkg_install(c('lavaan', 'semTools'), ask = FALSE); \
-    pak::pkg_install(c('simstudy', 'mokken'), ask = FALSE); \
-    pak::pkg_install('lordif', ask = FALSE); \
+# Install R packages in separate steps for better error handling
+RUN R -e "install.packages('pak', repos = 'https://cloud.r-project.org')"
+
+# Install packages in groups to isolate failures
+RUN R -e "pak::pkg_install(c('readr', 'readxl'), ask = FALSE)"
+RUN R -e "pak::pkg_install(c('polycor', 'psych'), ask = FALSE)"
+RUN R -e "pak::pkg_install(c('lavaan', 'semTools'), ask = FALSE)"
+RUN R -e "pak::pkg_install(c('simstudy', 'mokken'), ask = FALSE)"
+
+# Install lordif with extra dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgsl-dev \
+    libboost-all-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use binary packages when possible and install lordif with system library paths
+RUN R -e "options(pkgType = 'binary', where available); \
+    options(install.packages.compile.from.source = 'never'); \
+    Sys.setenv(CXXFLAGS = '-I/usr/include/eigen3'); \
+    pak::pkg_install('lordif', ask = FALSE)"
+
+# Verify all packages are installed
+RUN R -e "required_pkgs <- c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken', 'semTools', 'lordif'); \
     installed_pkgs <- installed.packages()[,'Package']; \
-    required_pkgs <- c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken', 'semTools', 'lordif'); \
     missing <- required_pkgs[!required_pkgs %in% installed_pkgs]; \
     if(length(missing) > 0) { \
-      stop(paste('Failed to install:', paste(missing, collapse=', '))); \
-    } \
-    cat('All packages successfully installed!')"
+        stop(paste('Failed to install:', paste(missing, collapse=', '))); \
+    } else { \
+        cat('All packages successfully installed!'); \
+    }"
 
 # Configure Python 
 RUN ln -s /usr/bin/python3.11 /usr/bin/python && \

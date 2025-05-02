@@ -1,10 +1,9 @@
-# Use rocker/r-ver as base - already optimized for R
-FROM rocker/r-ver:4.3.0
+# Start from standard R image with more built-in libraries
+FROM rocker/tidyverse:4.3
 
-# Install system dependencies for Python and your R packages
+# Install essential system dependencies (including Python and compression libs)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-dev \
+    python3-dev \
     python3-pip \
     python3-setuptools \
     python3-wheel \
@@ -17,6 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     liblapack-dev \
     libgfortran-11-dev \
     libopenblas-dev \
+    libbz2-dev \
+    liblzma-dev \
     zlib1g-dev \
     libfontconfig1-dev \
     libfribidi-dev \
@@ -26,63 +27,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libtiff5-dev \
     libjpeg-dev \
     libcairo2-dev \
+    libgsl-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Working directory
 WORKDIR /app
 
-# Install R package manager and dependencies
-# Install R packages in separate steps for better error handling
-RUN R -e "install.packages('pak', repos = 'https://cloud.r-project.org')"
+# Install R packages with a proven approach
+RUN R -e "install.packages('remotes', repos = 'https://cloud.r-project.org'); \
+    remotes::install_cran(c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken'), \
+                         dependencies = TRUE, type = 'binary', repos = 'https://cloud.r-project.org'); \
+    remotes::install_cran('semTools', dependencies = TRUE, repos = 'https://cloud.r-project.org');"
 
-# Install packages in groups to isolate failures
-RUN R -e "pak::pkg_install(c('readr', 'readxl'), ask = FALSE)"
-RUN R -e "pak::pkg_install(c('polycor', 'psych'), ask = FALSE)"
-RUN R -e "pak::pkg_install(c('lavaan', 'semTools'), ask = FALSE)"
-RUN R -e "pak::pkg_install(c('simstudy', 'mokken'), ask = FALSE)"
+# Install lordif separately with specific dependencies
+RUN R -e "install.packages(c('mirt', 'ltm'), repos = 'https://cloud.r-project.org'); \
+    install.packages('lordif', repos = 'https://cloud.r-project.org', \
+                   dependencies = TRUE, \
+                   INSTALL_opts = c('--no-multiarch'));"
 
-# Install lordif with extra dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgsl-dev \
-    libboost-all-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Use binary packages when possible and install lordif with system library paths
-# First attempt with pak
-RUN R -e "options(pkgType = 'binary'); \
-    options(install.packages.compile.from.source = 'never'); \
-    Sys.setenv(CXXFLAGS = '-I/usr/include/eigen3'); \
-    Sys.setenv(PKG_CONFIG_PATH = '/usr/lib/x86_64-linux-gnu/pkgconfig'); \
-    tryCatch({ \
-        pak::pkg_install('lordif', ask = FALSE, dependencies = TRUE) \
-    }, error = function(e) { \
-        cat('First method failed, trying alternate installation method\n') \
-    })"
-
-# Fallback method - direct installation with specific dependency handling
-RUN R -e "if (!require('lordif', quietly = TRUE)) { \
-        install.packages('mirt', repos = 'https://cloud.r-project.org'); \
-        install.packages('ltm', repos = 'https://cloud.r-project.org'); \
-        install.packages('https://cran.r-project.org/src/contrib/lordif_0.3-3.tar.gz', \
-                        repos = NULL, \
-                        type = 'source', \
-                        INSTALL_opts = c('--no-multiarch')) \
-    }"
-
-# Verify all packages are installed
+# Verify R packages installation
 RUN R -e "required_pkgs <- c('readr', 'readxl', 'polycor', 'psych', 'lavaan', 'simstudy', 'mokken', 'semTools', 'lordif'); \
     installed_pkgs <- installed.packages()[,'Package']; \
     missing <- required_pkgs[!required_pkgs %in% installed_pkgs]; \
     if(length(missing) > 0) { \
         stop(paste('Failed to install:', paste(missing, collapse=', '))); \
     } else { \
-        cat('All packages successfully installed!'); \
+        cat('All R packages successfully installed!'); \
     }"
 
-# Configure Python 
-RUN ln -s /usr/bin/python3.11 /usr/bin/python && \
+# Configure Python and upgrade pip
+RUN ln -s /usr/bin/python3 /usr/bin/python && \
     pip3 install --upgrade pip
 
 # Copy requirements first to leverage layer caching

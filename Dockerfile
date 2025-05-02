@@ -1,7 +1,7 @@
 # 1. Base image
 FROM python:3.11-slim@sha256:75a17dd6f00b277975715fc094c4a1570d512708de6bb4c5dc130814813ebfe4
 
-# 2. Install system deps, R base, and Debian CRAN binaries
+# 2. Install system deps and R base
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential \
@@ -17,18 +17,14 @@ RUN apt-get update \
       r-cran-readxl \
       r-cran-polycor \
       r-cran-psych \
-      r-cran-simstudy \
-      r-cran-mokken \
       r-cran-lavaan \
-      r-cran-semintools \
  && rm -rf /var/lib/apt/lists/*
 
 # 3. Working directory
 WORKDIR /app
 
-# 4. Install any remaining R packages from CRAN
-#    (Debian doesn’t package 'lordif', so we install it from source here)
-RUN Rscript -e "install.packages('lordif', repos='https://cloud.r-project.org/')"
+# 4. Install R packages from CRAN
+RUN Rscript -e "install.packages(c('simstudy', 'mokken', 'semTools', 'lordif'), repos='https://cloud.r-project.org/', dependencies=TRUE)"
 
 # 5. Verify R & key packages
 RUN Rscript -e "library(readr); library(readxl); library(polycor); library(psych); library(simstudy); library(mokken); library(lavaan); library(semTools); library(lordif); sessionInfo()"

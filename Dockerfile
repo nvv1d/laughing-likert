@@ -1,4 +1,4 @@
-```dockerfile
+
 # Start from standard R image with more built-in libraries
 FROM rocker/tidyverse:4.3
 
@@ -73,4 +73,3 @@ COPY templates/ ./templates/
 # Expose port and start command
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-```

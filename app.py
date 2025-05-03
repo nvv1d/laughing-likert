@@ -187,7 +187,7 @@ if not st.session_state.logged_in:
     # Simple footer
     st.markdown("""
         <div class="login-footer">
-            © 2025 Likert Scale Analysis Tool
+            © 2025 Analysis Tool
         </div>
         </div>
     </div>
@@ -1204,7 +1204,7 @@ if uploaded_file is not None:
                                                 st.dataframe(problem_clusters[['Cluster', 'Original Alpha', 'Simulated Alpha', 'Similarity (%)']])
                                                 
                                                 # Suggestions for improvement
-                                                st.info("💡 Suggestions: Try adjusting noise level or using different item weights extraction methods.")
+                                                st.info("💡 Suggestions: Use a larger dataset or try adjusting noise level or using different item weights extraction methods.")
                             
                             # Final combined score
                             overall_metrics = []
@@ -1451,7 +1451,7 @@ else:
         - Each row represents a respondent
         - Each column represents a survey item or demographic variable
         - Likert scale items should have integer values (e.g., 1-5, 1-7)
-        - Missing values should be represented as empty cells or standard missing value codes
+        - Missing values should be represented as empty cells or standard missing value codes (Better results if data is screened/cleaned first)
         
         ### Typical Data Structure
         
@@ -1465,8 +1465,8 @@ else:
         
         For best results, name your items with a common prefix to indicate which scale they belong to:
         
-        - TCR1, TCR2, TCR3 (items for TCR scale)
-        - WE1, WE2, WE3 (items for Work Engagement scale)
+        - X1, X2, X3 (items for X scale)
+        - Y1, Y2, Y3 (items for Y scale)
         - etc.
         """)
 
@@ -1474,7 +1474,6 @@ else:
 st.markdown("---")
 st.markdown(
     "Likert Scale Pattern Analysis Tool | "
-    "Created with Streamlit | "
     f"Version 1.0 | {datetime.now().year}"
 )
 

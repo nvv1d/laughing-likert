@@ -1,14 +1,12 @@
-# Requirements.R: list of CRAN packages to install via pak
+# Requirements.R
 packages <- c(
-  'readr',
-  'readxl',
-  'polycor',
-  'psych',
-  'lavaan',
-  'simstudy',
-  'mokken',
-  'semTools',
-  'lordif'
+  "readr",
+  "readxl",
+  "polycor",
+  "psych",
+  "lavaan",
+  "simstudy",
+  "mokken",
+  "semTools",
+  "lordif"
 )
-
-pak::pkg_install(packages)

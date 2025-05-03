@@ -4,7 +4,8 @@ FROM rocker/r-ver:4.3.2
 # 2. System dependencies with extended apt timeouts
 RUN echo 'Acquire::Retries "5"; Acquire::http::Timeout "60"; Acquire::https::Timeout "60";' \
       > /etc/apt/apt.conf.d/99timeouts \
-  && apt-get update && apt-get install -y --no-install-recommends \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
        build-essential \
        gfortran \
        libcurl4-openssl-dev \
@@ -12,13 +13,13 @@ RUN echo 'Acquire::Retries "5"; Acquire::http::Timeout "60"; Acquire::https::Tim
        libxml2-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# 3. Configure CRAN mirror, CPUs, and timeout in the correct Rprofile.site
+# 3. Configure CRAN mirror, parallel CPUs, and timeout
 RUN echo 'options(repos = c(CRAN="https://packagemanager.posit.co/cran/__linux__/focal/latest"), \
                  Ncpus = 4, timeout = 600)' \
-     >> "${R_HOME}/etc/Rprofile.site" :contentReference[oaicite:4]{index=4}
+     >> "${R_HOME}/etc/Rprofile.site"
 
-# 4. Install 'pak' without trailing semicolons for parallel installs
-RUN Rscript -e "install.packages('pak', repos='https://r-lib.github.io/p/pak/dev/')" :contentReference[oaicite:5]{index=5}
+# 4. Install pak for fast, parallel R package installs
+RUN Rscript -e "install.packages('pak', repos='https://r-lib.github.io/p/pak/dev/')"
 
 # 5. Copy and install R packages via Requirements.R (cacheable layer)
 WORKDIR /app

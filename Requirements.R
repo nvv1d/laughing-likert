@@ -1,5 +1,4 @@
-# Requirements.R
-# List all CRAN packages to install
+# Requirements.R: list of CRAN packages to install via pak
 packages <- c(
   'readr',
   'readxl',
@@ -12,5 +11,4 @@ packages <- c(
   'lordif'
 )
 
-# Install via pak for parallel, binary installs
 pak::pkg_install(packages)

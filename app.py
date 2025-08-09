@@ -13,6 +13,7 @@ import uuid
 import json
 import hashlib
 import time
+from auth import init_auth_session_state, render_login_page, is_authenticated, update_last_activity, render_logout_button, get_current_username
 from utils import (
     load_data, 
     identify_likert_columns, 
@@ -38,163 +39,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Define our login credentials
-DEFAULT_USERNAME = "Admin"
-DEFAULT_PASSWORD = "101066"  # This would typically be stored as a hash
-MAX_LOGIN_ATTEMPTS = 3
-LOCKOUT_DURATION_MINUTES = 15
-
-# Initialize session state variables for login system
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'login_attempts' not in st.session_state:
-    st.session_state.login_attempts = 0
-if 'lockout_until' not in st.session_state:
-    st.session_state.lockout_until = None
-if 'lockout_count' not in st.session_state:
-    st.session_state.lockout_count = 0
-
-# Minimal CSS for the login form
-login_css = """
-<style>
-.login-page {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-}
-
-.login-container {
-    max-width: 300px;
-    width: 100%;
-    text-align: center;
-}
-
-.stButton > button {
-    width: 100%;
-    background-color: #4051B5 !important;
-    color: white !important;
-}
-
-.login-footer {
-    margin-top: 20px;
-    font-size: 12px;
-    color: #888;
-}
-
-.error-message {
-    background-color: #FFEBEE;
-    color: #D32F2F;
-    padding: 10px;
-    border-radius: 4px;
-    margin-bottom: 15px;
-    font-size: 14px;
-}
-
-.locked-message {
-    background-color: #FFF8E1;
-    color: #F57F17;
-    padding: 10px;
-    border-radius: 4px;
-    margin-bottom: 15px;
-    font-size: 14px;
-}
-</style>
-"""
-
-# Check if user is locked out
-def is_locked_out():
-    if st.session_state.lockout_until is not None:
-        if datetime.now() < st.session_state.lockout_until:
-            remaining = st.session_state.lockout_until - datetime.now()
-            minutes = remaining.seconds // 60
-            seconds = remaining.seconds % 60
-            return True, f"{minutes} minutes and {seconds} seconds"
-        else:
-            # Reset lockout but keep count
-            st.session_state.lockout_until = None
-            st.session_state.login_attempts = 0
-            return False, ""
-    return False, ""
-
-# Function to handle login
-def process_login(username, password):
-    # Check if user is locked out
-    locked, time_remaining = is_locked_out()
-    if locked:
-        st.error(f"Account is temporarily locked. Please try again in {time_remaining}.")
-        return
-    
-    # Verify credentials
-    if username == DEFAULT_USERNAME and password == DEFAULT_PASSWORD:
-        st.session_state.logged_in = True
-        st.session_state.login_attempts = 0
-        st.session_state.lockout_count = 0
-        st.rerun()
-    else:
-        # Increment failed attempts
-        st.session_state.login_attempts += 1
-        attempts_left = MAX_LOGIN_ATTEMPTS - st.session_state.login_attempts
-        
-        if attempts_left <= 0:
-            # Lock the account
-            st.session_state.lockout_count += 1
-            # Increase lockout time based on number of past lockouts (15 min, 30 min, 60 min, etc.)
-            lockout_duration = LOCKOUT_DURATION_MINUTES * (2 ** (st.session_state.lockout_count - 1))
-            st.session_state.lockout_until = datetime.now() + timedelta(minutes=lockout_duration)
-            st.error(f"Too many failed attempts. Your account is locked for {lockout_duration} minutes.")
-        else:
-            st.error(f"Invalid username or password. {attempts_left} attempts remaining.")
+# Initialize authentication
+init_auth_session_state()
 
 # Display login if not logged in
-if not st.session_state.logged_in:
-    # Display the login form with custom styling
-    st.markdown(login_css, unsafe_allow_html=True)
-    
-    # Create a simple login container
-    st.markdown("""
-    <div class="login-page">
-        <div class="login-container">
-    """, unsafe_allow_html=True)
-    
-    locked, time_remaining = is_locked_out()
-    if locked:
-        st.markdown(f"""
-        <div class="locked-message">
-            Account is temporarily locked. Please try again in {time_remaining}.
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Create the login form
-        with st.form("login_form"):
-            username = st.text_input("Username", value="Admin")
-            password = st.text_input("Password", type="password")
-            
-            # Display error message if there were previous attempts
-            if st.session_state.login_attempts > 0:
-                attempts_left = MAX_LOGIN_ATTEMPTS - st.session_state.login_attempts
-                st.markdown(f"""
-                <div class="error-message">
-                    Invalid username or password. {attempts_left} attempts remaining.
-                </div>
-                """, unsafe_allow_html=True)
-            
-            submit = st.form_submit_button("Log In")
-            
-            if submit:
-                process_login(username, password)
-    
-    # Simple footer
-    st.markdown("""
-        <div class="login-footer">
-            © 2025 Analysis Tool
-        </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Don't show anything else if not logged in
+if not is_authenticated():
+    render_login_page()
     st.stop()
+
+# Update last activity when logged in
+update_last_activity()
 
 # Main Application (only shown if logged in)
 st.title("Likert Scale Pattern Analysis")
@@ -227,11 +81,8 @@ with st.sidebar:
     </style>
     """, unsafe_allow_html=True)
     
-    if st.button("Logout", key="logout_btn"):
-        # Clear session state and log out
-        st.session_state.logged_in = False
-        st.session_state.login_attempts = 0
-        st.rerun()
+    st.write(f"👋 Welcome, {get_current_username()}!")
+render_logout_button()
     
     st.header("Upload Data")
     uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx", "xls"])

@@ -3,7 +3,6 @@ numpy
 scikit-learn
 factor-analyzer
 semopy
-rpy2
 jinja2
 plotly
 networkx

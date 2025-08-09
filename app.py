@@ -269,9 +269,9 @@ with st.sidebar:
     if uploaded_file is not None:
         # Advanced settings (collapsed by default)
         with st.expander("Advanced Settings"):
-            min_cats = st.slider("Minimum Categories", 2, 10, 4, 
+            min_cats = st.slider("Minimum Categories", 2, 10, 3,  # Changed default from 4 to 3
                                  help="Minimum number of categories to identify Likert items")
-            max_cats = st.slider("Maximum Categories", min_cats, 15, 7, 
+            max_cats = st.slider("Maximum Categories", min_cats, 15, 10,  # Changed default from 7 to 10
                                  help="Maximum number of categories to identify Likert items")
             reverse_threshold = st.slider("Reverse Item Threshold", -1.0, 0.0, -0.2, 0.05,
                                          help="Correlation threshold to identify reverse-coded items")
@@ -285,8 +285,6 @@ with st.sidebar:
                 # Set defaults for R Only method
                 n_clusters = 0
                 n_factors = 0
-            
-            # Default number of simulations (we'll use a direct input in the Simulation tab)
 
 # Only show the rest if a file is uploaded
 if uploaded_file is not None:
@@ -317,7 +315,7 @@ if uploaded_file is not None:
         
         # Put results in session state for persistence across reruns
         if 'likert_items' not in st.session_state:
-            st.session_state.likert_items = identify_likert_columns(df, min_cats, max_cats)
+            st.session_state.likert_items = []
         if 'reverse_items' not in st.session_state:
             st.session_state.reverse_items = []
         if 'clusters' not in st.session_state:
@@ -339,31 +337,217 @@ if uploaded_file is not None:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
-            
-        # Tab 1: Data Preparation
+        
+        # Tab 1: Data Preparation - ENHANCED VERSION
         with tab1:
             st.header("Data Preparation")
             
-            # Automatically identify Likert items
-            st.subheader("Identified Likert Items")
+            # Show data summary first
+            st.subheader("Data Summary")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Rows", df.shape[0])
+            with col2:
+                st.metric("Total Columns", df.shape[1])
+            with col3:
+                numeric_cols = len(df.select_dtypes(include=[np.number]).columns)
+                st.metric("Numeric Columns", numeric_cols)
+            
+            # Enhanced Likert item detection
+            st.subheader("Likert Item Detection")
+            
+            # Add detection method selection
+            detection_method = st.radio(
+                "Detection Method",
+                ["Automatic (Smart Detection)", "Manual Selection", "All Numeric Columns"],
+                help="Choose how to identify Likert scale items"
+            )
+            
+            if detection_method == "Automatic (Smart Detection)":
+                col1, col2 = st.columns(2)
+                with col1:
+                    min_cats_display = st.slider("Minimum Categories", 2, 10, min_cats,
+                                        key="min_cats_display",
+                                        help="Minimum number of unique values to identify Likert items")
+                with col2:
+                    max_cats_display = st.slider("Maximum Categories", min_cats_display, 15, max_cats,
+                                        key="max_cats_display", 
+                                        help="Maximum number of unique values to identify Likert items")
+                
+                # Re-identify Likert items with new parameters
+                if st.button("Re-detect Likert Items") or len(st.session_state.likert_items) == 0:
+                    with st.spinner("Analyzing columns for Likert scale characteristics..."):
+                        detected_items = identify_likert_columns(df, min_cats_display, max_cats_display)
+                        st.session_state.likert_items = detected_items
+                
+                # Show detection results with detailed breakdown
+                st.subheader("Detection Results")
+                
+                # Analyze all numeric columns and show why some were excluded
+                numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+                detection_details = []
+                
+                for col in numeric_columns:
+                    unique_vals = df[col].nunique()
+                    min_val = df[col].min()
+                    max_val = df[col].max()
+                    has_negatives = min_val < 0
+                    is_detected = col in st.session_state.likert_items
+                    
+                    # Determine why it was included/excluded
+                    if is_detected:
+                        reason = "✅ Detected as Likert item"
+                    elif unique_vals < min_cats_display:
+                        reason = f"❌ Too few categories ({unique_vals} < {min_cats_display})"
+                    elif unique_vals > max_cats_display:
+                        reason = f"❌ Too many categories ({unique_vals} > {max_cats_display})"
+                    elif has_negatives:
+                        reason = f"⚠️ Contains negative values (min: {min_val})"
+                    else:
+                        reason = "❌ Other exclusion criteria"
+                    
+                    detection_details.append({
+                        'Column': col,
+                        'Unique Values': unique_vals,
+                        'Range': f"{min_val} - {max_val}",
+                        'Status': reason,
+                        'Include': is_detected
+                    })
+                
+                # Display the detection table
+                detection_df = pd.DataFrame(detection_details)
+                
+                # Show summary
+                detected_count = len(st.session_state.likert_items)
+                excluded_count = len(numeric_columns) - detected_count
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Detected Items", detected_count, delta=f"+{detected_count} included")
+                with col2:
+                    st.metric("Excluded Items", excluded_count, delta=f"-{excluded_count} excluded")
+                with col3:
+                    detection_rate = (detected_count / len(numeric_columns) * 100) if numeric_columns else 0
+                    st.metric("Detection Rate", f"{detection_rate:.1f}%")
+                
+                # Show detailed breakdown in expandable section
+                with st.expander("View Detection Details", expanded=True):
+                    # Add filter options
+                    filter_option = st.selectbox("Filter by:", ["All columns", "Detected only", "Excluded only"])
+                    
+                    if filter_option == "Detected only":
+                        display_df = detection_df[detection_df['Include'] == True]
+                    elif filter_option == "Excluded only":
+                        display_df = detection_df[detection_df['Include'] == False]
+                    else:
+                        display_df = detection_df
+                    
+                    st.dataframe(display_df, use_container_width=True)
+                    
+                    # Show excluded items that might be recoverable
+                    potentially_recoverable = detection_df[
+                        (detection_df['Include'] == False) & 
+                        (detection_df['Unique Values'] >= 2) &
+                        (~detection_df['Status'].str.contains('negative'))
+                    ]
+                    
+                    if len(potentially_recoverable) > 0:
+                        st.warning(f"Found {len(potentially_recoverable)} potentially recoverable items that were excluded due to category count limits.")
+                        recoverable_items = st.multiselect(
+                            "Select items to include anyway:",
+                            options=potentially_recoverable['Column'].tolist(),
+                            help="These items were excluded due to category limits but might still be valid Likert items"
+                        )
+                        
+                        if recoverable_items:
+                            # Add recovered items to the Likert items list
+                            updated_items = list(set(st.session_state.likert_items + recoverable_items))
+                            st.session_state.likert_items = updated_items
+                            st.success(f"Added {len(recoverable_items)} recovered items. Total Likert items: {len(updated_items)}")
+                            st.rerun()
+            
+            elif detection_method == "Manual Selection":
+                # Let user manually select from all columns
+                st.write("Select which columns represent Likert scale items:")
+                
+                # Get all numeric columns as candidates
+                numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+                
+                # Show column info to help with selection
+                col_info = []
+                for col in numeric_columns:
+                    unique_vals = df[col].nunique()
+                    min_val = df[col].min()
+                    max_val = df[col].max()
+                    col_info.append(f"{col} (Range: {min_val}-{max_val}, {unique_vals} categories)")
+                
+                # Multi-select with current selection as default
+                current_selection = st.session_state.get('likert_items', [])
+                selected_items = st.multiselect(
+                    "Choose Likert scale columns:",
+                    options=numeric_columns,
+                    default=[item for item in current_selection if item in numeric_columns],
+                    format_func=lambda x: next((info for info in col_info if info.startswith(x)), x),
+                    help="Select all columns that contain Likert scale responses"
+                )
+                
+                st.session_state.likert_items = selected_items
+                
+                if selected_items:
+                    st.success(f"Selected {len(selected_items)} Likert items")
+                else:
+                    st.warning("No items selected")
+            
+            else:  # All Numeric Columns
+                # Use all numeric columns as Likert items
+                numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+                st.session_state.likert_items = numeric_columns
+                
+                st.info(f"Using all {len(numeric_columns)} numeric columns as Likert items")
+                
+                # Show the columns that will be used
+                with st.expander("View all numeric columns", expanded=False):
+                    col_details = []
+                    for col in numeric_columns:
+                        unique_vals = df[col].nunique()
+                        min_val = df[col].min()
+                        max_val = df[col].max()
+                        col_details.append({
+                            'Column': col,
+                            'Categories': unique_vals,
+                            'Min': min_val,
+                            'Max': max_val,
+                            'Range': f"{min_val} - {max_val}"
+                        })
+                    
+                    st.dataframe(pd.DataFrame(col_details))
+            
+            # Final confirmation and overview
             likert_items = st.session_state.likert_items
             
             if len(likert_items) == 0:
-                st.warning("No Likert scale items detected. Please check your data format.")
+                st.error("No Likert scale items identified. Please adjust your detection settings or manually select items.")
             else:
-                st.success(f"Detected {len(likert_items)} Likert scale items")
-                likert_selected = st.multiselect(
-                    "Confirm Likert Items (unselect any non-Likert items)",
-                    options=likert_items,
-                    default=likert_items
-                )
+                # Show final selection with option to fine-tune
+                st.subheader("Final Likert Items Selection")
+                st.success(f"✅ **{len(likert_items)} Likert items** ready for analysis")
                 
-                # Update Likert items based on user selection
-                if likert_selected != likert_items:
-                    st.session_state.likert_items = likert_selected
-                    likert_items = likert_selected
+                # Allow final adjustments
+                with st.expander("Fine-tune selection (optional)", expanded=False):
+                    adjusted_items = st.multiselect(
+                        "Adjust final selection:",
+                        options=df.select_dtypes(include=[np.number]).columns.tolist(),
+                        default=likert_items,
+                        help="Make final adjustments to your Likert items selection"
+                    )
                     
-                # Show distribution of all items in an expandable manner
+                    if adjusted_items != likert_items:
+                        st.session_state.likert_items = adjusted_items
+                        likert_items = adjusted_items
+                        st.success(f"Updated selection: {len(adjusted_items)} items")
+                        st.rerun()
+                
+                # Show distribution of selected items
                 if likert_items:
                     with st.expander("Item Distributions", expanded=True):
                         st.subheader("Item Distributions")
@@ -415,9 +599,10 @@ if uploaded_file is not None:
                 
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    reverse_threshold = st.slider(
+                    reverse_threshold_display = st.slider(
                         "Reverse Item Detection Threshold", 
-                        -1.0, 0.0, 0.0, 0.05,
+                        -1.0, 0.0, reverse_threshold, 0.05,
+                        key="reverse_threshold_display",
                         help="Correlation threshold to identify reverse-coded items"
                     )
                 
@@ -431,7 +616,7 @@ if uploaded_file is not None:
                 if detect_button:
                     with st.spinner("Analyzing item correlations to detect reverse-coded items..."):
                         # Add more detailed analysis here
-                        reverse_items = detect_reverse_items(df, likert_items, reverse_threshold)
+                        reverse_items = detect_reverse_items(df, likert_items, reverse_threshold_display)
                         st.session_state.reverse_items = reverse_items
                         
                         # Get correlation details for reverse items
@@ -514,13 +699,14 @@ if uploaded_file is not None:
                                         title="After Reverse Coding"
                                     )
                                     st.plotly_chart(fig, use_container_width=True)
-                
+                    
                     # Moved the button outside of the expanders for better visibility
                     if st.button("Apply Reverse Coding to All Items"):
                         scale_min = int(df[likert_items].min().min())
                         scale_max = int(df[likert_items].max().max())
                         df = reverse_code(df, st.session_state.reverse_items, scale_min, scale_max)
                         st.success(f"Reverse coding applied to {len(st.session_state.reverse_items)} items")
+                        st.rerun()
                 
                 # Sampling adequacy tests
                 st.subheader("Sampling Adequacy")
@@ -821,6 +1007,23 @@ if uploaded_file is not None:
                         
                         # Now simulate with complete weights
                         sim_data = simulate_responses(updated_weights, num_simulations, noise_level)
+                        
+                        # FIX: Reorder columns to match original data order
+                        # Use the original Likert items order from the session state
+                        original_order = st.session_state.likert_items
+                        
+                        # Ensure all columns from original order exist in simulated data
+                        available_cols = [col for col in original_order if col in sim_data.columns]
+                        missing_cols = [col for col in original_order if col not in sim_data.columns]
+                        
+                        if missing_cols:
+                            st.warning(f"Some columns missing from simulation: {missing_cols[:5]}{'...' if len(missing_cols) > 5 else ''}")
+                        
+                        # Reorder the simulated data to match original column order
+                        if available_cols:
+                            sim_data = sim_data[available_cols]
+                            st.success(f"✅ Simulated data reordered to match original column sequence")
+                        
                         st.session_state.sim_data = sim_data
                         
                         # Update the session state weights with the augmented weights to ensure consistency
@@ -1476,5 +1679,3 @@ st.markdown(
     "Likert Scale Pattern Analysis Tool | "
     f"Version 1.0 | {datetime.now().year}"
 )
-
-# Removed Back to Top button as it's not compatible with Streamlit's iframe structure

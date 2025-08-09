@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 class SecurityConfig:
     def __init__(self):
         self.default_username = "Admin"
-        self.stored_password_hash = "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d"
+        self.stored_password_hash = "6315a0a0f67490999b3657c395d229fa5098a3dfd403bc6284e45e34ef5bcb07"
         self.max_login_attempts = 3
         self.lockout_duration_minutes = 15
         self.session_timeout_minutes = 30

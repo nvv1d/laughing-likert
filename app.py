@@ -59,30 +59,8 @@ and generate simulated data based on those patterns. Upload your data file to ge
 
 # Sidebar for inputs and controls
 with st.sidebar:
-    # Add logout button at the top of the sidebar
-    st.markdown("""
-    <style>
-    .logout-btn {
-        position: absolute;
-        top: 0.5rem;
-        right: 1rem;
-        padding: 0.5rem;
-        background-color: #f8f9fa;
-        border-radius: 0.3rem;
-        color: #6c757d;
-        text-decoration: none;
-        font-size: 0.8rem;
-        cursor: pointer;
-    }
-    .logout-btn:hover {
-        background-color: #e9ecef;
-        color: #343a40;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
     st.write(f"👋 Welcome, {get_current_username()}!")
-render_logout_button()
+    render_logout_button()
     
     st.header("Upload Data")
     uploaded_file = st.file_uploader("Choose a CSV or Excel file", type=["csv", "xlsx", "xls"])
@@ -120,9 +98,9 @@ render_logout_button()
     if uploaded_file is not None:
         # Advanced settings (collapsed by default)
         with st.expander("Advanced Settings"):
-            min_cats = st.slider("Minimum Categories", 2, 10, 3,  # Changed default from 4 to 3
+            min_cats = st.slider("Minimum Categories", 2, 10, 3,
                                  help="Minimum number of categories to identify Likert items")
-            max_cats = st.slider("Maximum Categories", min_cats, 15, 10,  # Changed default from 7 to 10
+            max_cats = st.slider("Maximum Categories", min_cats, 15, 10,
                                  help="Maximum number of categories to identify Likert items")
             reverse_threshold = st.slider("Reverse Item Threshold", -1.0, 0.0, -0.2, 0.05,
                                          help="Correlation threshold to identify reverse-coded items")

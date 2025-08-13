@@ -635,7 +635,7 @@ if uploaded_file is not None:
 
                         for scale_name, scale_info in scale_reliability.items():
                             with st.expander(f"📈 {scale_name} (α = {scale_info['alpha']:.3f}, {scale_info['quality']})",
-                                           expanded=scale_info['alpha'] < 0.7):  # Auto-expand poor scales
+               expanded=bool(scale_info['alpha'] < 0.7)):  # Auto-expand poor scales
 
                                 col1, col2 = st.columns([2, 1])
 

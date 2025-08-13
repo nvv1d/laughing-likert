@@ -1170,7 +1170,7 @@ if uploaded_file is not None:
                         mime="text/csv"
                     )
         
-# Tab 4: Simulation
+# Tab 4: Simulation - ENHANCED WITH BIAS OPTIONS AND FULL STATISTICAL ANALYSIS
         with tab4:
             st.header("Response Simulation")
             
@@ -1213,7 +1213,7 @@ if uploaded_file is not None:
                         bias_type = st.selectbox(
                             "Bias Direction",
                             options=["high", "low"],
-                            format_func=lambda x: "High Bias (optimistic/high-achievers)" if x == "high" else "Low Bias (pessimistic/critical)",
+                            format_func=lambda x: "High Bias (optimistic)" if x == "high" else "Low Bias (pessimistic)",
                             help="Direction of bias: high = toward maximum scale values, low = toward minimum scale values"
                         )
                     
@@ -1234,12 +1234,13 @@ if uploaded_file is not None:
                             max_value=100,
                             value=30,
                             step=5,
-                            format="%d%%",
+                            format="%d%%", # Corrected format parameter
                             help="What percentage of responses should be affected by bias"
                         )
+                        # Convert display value to the float required by the backend
                         bias_percentage = bias_percentage_display / 100.0
                     
-                    # --- RESTORED HELPER BOX ---
+                    # HELPER BOX: Bias explanation and preview, restored from your original code
                     with st.expander("🔍 Bias Configuration Preview", expanded=True):
                         if bias_type == "high":
                             st.success(f"**High Bias Configuration:**")
@@ -1282,7 +1283,7 @@ if uploaded_file is not None:
                         fig.update_layout(title="Example: Bias Effect on Response Distribution", barmode='group', height=400)
                         st.plotly_chart(fig, use_container_width=True)
 
-                # --- SIMULATION BUTTON ---
+                # --- SIMULATION BUTTON AND LOGIC ---
                 if st.button("🚀 Simulate Responses"):
                     with st.spinner(f"Simulating {num_simulations} responses..."):
                         updated_weights = st.session_state.weights.copy()
@@ -1310,9 +1311,10 @@ if uploaded_file is not None:
                             sim_data = sim_data[available_cols]
 
                         st.session_state.sim_data = sim_data
+                        st.session_state.weights = updated_weights # Save potentially augmented weights
                         st.success(f"🎯 Successfully generated {num_simulations} responses!")
 
-                # --- SIMULATION RESULTS AND COMPARISON ---
+                # --- SIMULATION RESULTS AND COMPREHENSIVE COMPARISON ---
                 if st.session_state.get('sim_data') is not None:
                     st.subheader("Simulated Data Preview")
                     with st.expander("View simulated data", expanded=True):
@@ -1324,7 +1326,6 @@ if uploaded_file is not None:
 
                     st.download_button("📥 Download Simulated Data as CSV", st.session_state.sim_data.to_csv(index=False).encode('utf-8'), file_name=f"simulated_data_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
-                    # --- COMPREHENSIVE STATISTICAL COMPARISON ---
                     st.markdown("---")
                     st.subheader("📊 Statistical Comparison: Real vs Simulated Data")
                     
@@ -1343,11 +1344,8 @@ if uploaded_file is not None:
                                         stats_diff[metric] = abs(real_desc[metric] - sim_desc[metric]).mean()
                                 
                                 st.subheader("Similarity Metrics")
-                                similarity_df = pd.DataFrame({
-                                    'Statistic': list(stats_diff.keys()),
-                                    'Mean Absolute Difference': list(stats_diff.values())
-                                })
-                                similarity_df['Similarity Score (%)'] = similarity_df['Mean Absolute Difference'].apply(lambda d: max(0, 100 - (d * 25))) # Heuristic
+                                similarity_df = pd.DataFrame.from_dict(stats_diff, orient='index', columns=['Mean Absolute Difference'])
+                                similarity_df['Similarity Score (%)'] = similarity_df['Mean Absolute Difference'].apply(lambda d: max(0, 100 - (d * 25)))
                                 st.dataframe(similarity_df.sort_values('Similarity Score (%)', ascending=False))
                                 overall_similarity = similarity_df['Similarity Score (%)'].mean()
                                 st.metric("Overall Descriptive Similarity", f"{overall_similarity:.2f}%")
@@ -1358,6 +1356,17 @@ if uploaded_file is not None:
                                 sim_corr = st.session_state.sim_data[st.session_state.likert_items].corr()
                                 corr_diff = abs(real_corr - sim_corr)
                                 
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    st.write("Original Correlation")
+                                    st.plotly_chart(px.imshow(real_corr, zmin=-1, zmax=1, color_continuous_scale="Blues"), use_container_width=True)
+                                with col2:
+                                    st.write("Simulated Correlation")
+                                    st.plotly_chart(px.imshow(sim_corr, zmin=-1, zmax=1, color_continuous_scale="Reds"), use_container_width=True)
+                                with col3:
+                                    st.write("Difference (Absolute)")
+                                    st.plotly_chart(px.imshow(corr_diff, zmin=0, zmax=1, color_continuous_scale="Greens"), use_container_width=True)
+
                                 mean_diff = corr_diff.values[np.triu_indices_from(corr_diff.values, k=1)].mean()
                                 corr_similarity = max(0, 100 - (mean_diff * 100))
                                 st.metric("Correlation Structure Similarity", f"{corr_similarity:.2f}%")
@@ -1405,10 +1414,10 @@ if uploaded_file is not None:
                             st.markdown("---")
                             st.subheader("🏆 Overall Simulation Quality Assessment")
                             overall_metrics = {
-                                'Descriptive': overall_similarity,
-                                'Correlation': corr_similarity,
-                                'Distribution': dist_similarity,
-                                'Reliability': locals().get('reliability_similarity')
+                                'Descriptive Stats': overall_similarity,
+                                'Correlation Structure': corr_similarity,
+                                'Distribution Shape': dist_similarity,
+                                'Scale Reliability': locals().get('reliability_similarity')
                             }
                             final_scores = {k: v for k, v in overall_metrics.items() if v is not None}
                             
@@ -1418,11 +1427,20 @@ if uploaded_file is not None:
                                     mode = "gauge+number",
                                     value = final_score,
                                     title = {'text': "Overall Simulation Quality"},
-                                    gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#3366CC"}}
+                                    gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#3366CC"},
+                                             'steps' : [
+                                                 {'range': [0, 70], 'color': "#FF7C81"},
+                                                 {'range': [70, 85], 'color': "#F7D96E"},
+                                                 {'range': [85, 100], 'color': "#90EE90"}],
+                                            }
                                 ))
                                 fig.update_layout(height=250)
                                 st.plotly_chart(fig, use_container_width=True)
-                        
+
+                                score_df = pd.DataFrame(final_scores.items(), columns=['Metric', 'Score (%)'])
+                                fig_bar = px.bar(score_df, x='Score (%)', y='Metric', orientation='h', title="Component Similarity Scores", color='Score (%)', color_continuous_scale=px.colors.sequential.Viridis, range_color=[50,100])
+                                st.plotly_chart(fig_bar, use_container_width=True)
+
                         except Exception as e:
                             st.error(f"An error occurred during statistical comparison: {e}")
                             st.exception(e)

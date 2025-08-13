@@ -1043,36 +1043,42 @@ if uploaded_file is not None:
                         - Hover over nodes to see details about each item and its strongest connections
                         - Drag nodes to reposition them for better viewing
                         """)
-        
+                        
         # Tab 3: Pattern Extraction
         with tab3:
             st.header("Pattern Extraction")
-            
-            if not st.session_state.clusters:
-                st.warning("Please cluster items in the Item Analysis tab first")
+
+            if not st.session_state.get('clusters'):
+                st.warning("Please cluster items in the Item Analysis tab first.")
             else:
-                # Determine factors
+                # Determine factors if not already done
                 if 'n_factors_detected' not in st.session_state:
                     with st.spinner("Determining optimal number of factors..."):
-                        n_factors_detected = determine_factors(df, st.session_state.likert_items)
-                        st.session_state.n_factors_detected = n_factors_detected
-                
-                st.info(f"Optimal number of factors: {st.session_state.n_factors_detected}")
-                
+                        # Use only the likert items that have been clustered
+                        clustered_items = [item for sublist in st.session_state.clusters.values() for item in sublist]
+                        if clustered_items:
+                            n_factors_detected = determine_factors(df, clustered_items)
+                            st.session_state.n_factors_detected = n_factors_detected
+                        else:
+                             st.session_state.n_factors_detected = 1 # Default if no clusters found
+
+                st.info(f"🤖 Optimal number of factors suggested by analysis: **{st.session_state.n_factors_detected}**")
+
                 # Extract weights
                 if st.button("Extract Item Weights"):
-                    with st.spinner("Extracting item weights..."):
+                    with st.spinner("Extracting item weights... This may take a moment."):
                         weights = extract_weights(
-                            df, 
+                            df,
                             st.session_state.clusters,
                             n_factors if n_factors > 0 else st.session_state.n_factors_detected
                         )
                         st.session_state.weights = weights
-                
-                if st.session_state.weights:
-                    st.success("Item weights extracted successfully")
-                    
+
+                if st.session_state.get('weights'):
+                    st.success("✅ Item weights extracted successfully!")
+
                     # Visualize weights by cluster
+                    st.subheader("Item Weight Visualization")
                     for sc, items in st.session_state.clusters.items():
                         # Extract weights in a format suitable for visualization
                         vis_weights = {}
@@ -1081,65 +1087,68 @@ if uploaded_file is not None:
                                 w_data = st.session_state.weights[item]
                                 if isinstance(w_data, dict):
                                     if w_data.get('is_distribution', False):
-                                        # For distribution-based weights, use average value
-                                        if 'weights' in w_data:
+                                        # For distribution-based weights, calculate the mean for visualization
+                                        if 'weights' in w_data and w_data['weights']:
                                             dist = w_data['weights']
                                             try:
-                                                avg = sum(float(k) * v for k, v in dist.items()) / sum(dist.values())
+                                                avg = sum(float(k) * v for k, v in dist.items())
                                                 vis_weights[item] = avg
-                                            except:
+                                            except (ValueError, TypeError):
                                                 vis_weights[item] = 0.5  # Fallback
+                                        else:
+                                             vis_weights[item] = 0.5 # Fallback
                                     else:
                                         # For factor analysis weights
                                         vis_weights[item] = w_data.get('weight', 0.5)
                                 else:
                                     # Legacy format (simple value)
                                     vis_weights[item] = w_data
-                        
+
                         if vis_weights:
                             fig = px.bar(
                                 x=list(vis_weights.keys()),
                                 y=list(vis_weights.values()),
-                                title=f"Item Weights (Cluster {sc})"
+                                title=f"Item Weights (Cluster {sc})",
+                                labels={'x': 'Item', 'y': 'Weight/Mean Value'}
                             )
                             st.plotly_chart(fig, use_container_width=True)
-                    
+
                     # Create a more detailed weights table showing all information
+                    st.subheader("Detailed Weights Table")
                     weights_rows = []
                     for item, w_data in st.session_state.weights.items():
+                        row = {'Item': item}
                         if isinstance(w_data, dict):
                             if w_data.get('is_distribution', False):
-                                # Distribution-based
-                                weights_rows.append({
-                                    'Item': item,
-                                    'Weight Type': 'Distribution', 
-                                    'Weight': str(w_data.get('weights', {}))[:30] + '...' if len(str(w_data.get('weights', {}))) > 30 else str(w_data.get('weights', {}))
-                                })
+                                # For distribution-based weights, show the dictionary as a string
+                                weight_display = str(w_data.get('weights', {}))
+                                row['Weight Type'] = 'Distribution'
+                                # Truncate long strings for cleaner display
+                                row['Weight'] = (weight_display[:70] + '...') if len(weight_display) > 70 else weight_display
                             else:
-                                # Factor-based
-                                weights_rows.append({
-                                    'Item': item,
-                                    'Weight Type': 'Factor Loading', 
-                                    'Weight': w_data.get('weight', 0.0)
-                                })
+                                # For factor-based weights, format the float as a string
+                                weight_val = w_data.get('weight', 0.0)
+                                row['Weight Type'] = 'Factor Loading'
+                                row['Weight'] = f"{weight_val:.4f}"
                         else:
-                            # Legacy format
-                            weights_rows.append({
-                                'Item': item,
-                                'Weight Type': 'Simple', 
-                                'Weight': w_data
-                            })
-                    
+                            # For legacy simple weights, format the float as a string
+                            weight_val = w_data
+                            row['Weight Type'] = 'Simple'
+                            row['Weight'] = f"{weight_val:.4f}"
+                        weights_rows.append(row)
+
                     # Display detailed weights table
-                    weights_df = pd.DataFrame(weights_rows)
-                    st.dataframe(weights_df)
-                    
-                    # Download weights - create a simpler version for download
+                    if weights_rows:
+                        weights_df = pd.DataFrame(weights_rows)
+                        st.dataframe(weights_df, use_container_width=True)
+
+                    # Download weights
+                    st.subheader("Export Weights")
                     simple_weights = {}
                     for item, w_data in st.session_state.weights.items():
                         if isinstance(w_data, dict):
                             if w_data.get('is_distribution', False):
-                                # For distribution, use the weights dict
+                                # For distribution, use the string representation of the weights dict
                                 simple_weights[item] = str(w_data.get('weights', {}))
                             else:
                                 # For factor analysis weights
@@ -1147,17 +1156,16 @@ if uploaded_file is not None:
                         else:
                             # Legacy format
                             simple_weights[item] = w_data
-                    
-                    # Create simple CSV for download
+
                     download_df = pd.DataFrame({
                         'Item': simple_weights.keys(),
                         'Weight': simple_weights.values()
                     })
-                    weights_csv = download_df.to_csv(index=False)
-                    
+                    weights_csv = download_df.to_csv(index=False).encode('utf-8')
+
                     st.download_button(
-                        "Download Weights as CSV",
-                        weights_csv,
+                        label="📥 Download Weights as CSV",
+                        data=weights_csv,
                         file_name=f"likert_weights_{datetime.now().strftime('%Y%m%d')}.csv",
                         mime="text/csv"
                     )

@@ -1170,45 +1170,46 @@ if uploaded_file is not None:
                         mime="text/csv"
                     )
         
-        # Tab 4: Simulation - ENHANCED WITH BIAS OPTIONS
+# Tab 4: Simulation - ENHANCED WITH BIAS OPTIONS
         with tab4:
             st.header("Response Simulation")
-            
-            if not st.session_state.weights:
-                st.warning("Please extract item weights in the Pattern Extraction tab first")
+
+            if not st.session_state.get('weights'):
+                st.warning("Please extract item weights in the Pattern Extraction tab first.")
             else:
                 st.subheader("Simulate New Responses")
-                
+
                 # Base simulation settings
                 col1, col2 = st.columns(2)
-                
+
                 with col1:
-                    noise_level = st.slider("Noise Level", 0.0, 1.0, 0.1, 0.05, 
+                    noise_level = st.slider("Noise Level", 0.0, 1.0, 0.1, 0.05,
                                            help="Higher values create more variable responses")
-                
+
                 with col2:
-                    num_simulations = st.number_input("Number of responses to simulate", 
-                                                   min_value=10, 
-                                                   max_value=10000, 
+                    num_simulations = st.number_input("Number of responses to simulate",
+                                                   min_value=10,
+                                                   max_value=10000,
                                                    value=100,
                                                    step=10,
                                                    help="Enter the number of simulated responses you want to generate")
-                
+
                 # NEW FEATURE: Bias Options
                 st.markdown("---")
                 st.subheader("🎯 Response Bias Options")
-                
+
                 enable_bias = st.checkbox(
-                    "Enable Response Bias", 
+                    "Enable Response Bias",
                     value=False,
                     help="Apply systematic bias to simulate specific response patterns"
                 )
-                
+
+                # This block contains the corrected slider
                 if enable_bias:
-                    st.info("🔧 Configure bias settings to simulate different respondent types (e.g., high-achievers, pessimists)")
-                    
+                    st.info("🔧 Configure bias settings to simulate different respondent types (e.g., high-achievers, pessimists).")
+
                     col1, col2, col3 = st.columns(3)
-                    
+
                     with col1:
                         bias_type = st.selectbox(
                             "Bias Direction",
@@ -1216,7 +1217,7 @@ if uploaded_file is not None:
                             format_func=lambda x: "High Bias (optimistic/high-achievers)" if x == "high" else "Low Bias (pessimistic/critical)",
                             help="Direction of bias: high = toward maximum scale values, low = toward minimum scale values"
                         )
-                    
+
                     with col2:
                         bias_strength = st.slider(
                             "Bias Strength",
@@ -1226,59 +1227,63 @@ if uploaded_file is not None:
                             step=0.1,
                             help="How strong the bias is (higher = more extreme bias)"
                         )
-                    
+
                     with col3:
-                        bias_percentage = st.slider(
+                        # Corrected slider implementation
+                        bias_percentage_display = st.slider(
                             "Percentage Affected",
-                            min_value=0.1,
-                            max_value=1.0,
-                            value=0.3,
-                            step=0.05,
-                            format_func=lambda x: f"{x*100:.0f}%",
+                            min_value=10,
+                            max_value=100,
+                            value=30,
+                            step=5,
+                            format="%d%%",  # Use the correct 'format' arg with a percentage specifier
                             help="What percentage of responses should be affected by bias"
                         )
-                    
+                        # Convert the display value (10-100) back to a float (0.1-1.0) for calculations
+                        bias_percentage = bias_percentage_display / 100.0
+
                     # Bias explanation and preview
                     with st.expander("🔍 Bias Configuration Preview", expanded=True):
                         if bias_type == "high":
                             st.success(f"**High Bias Configuration:**")
-                            st.write(f"- **Effect**: {bias_percentage*100:.0f}% of responses will be biased toward higher values")
-                            st.write(f"- **Strength**: {bias_strength:.1f}x increase in probability for top 2 scale values")
-                            st.write(f"- **Use case**: Simulate high-achievers, optimistic respondents, or positive response bias")
+                            st.write(f"- **Effect**: {bias_percentage*100:.0f}% of responses will be biased toward higher values.")
+                            st.write(f"- **Strength**: {bias_strength:.1f}x increase in probability for top 2 scale values.")
+                            st.write(f"- **Use case**: Simulate high-achievers, optimistic respondents, or positive response bias.")
                         else:
                             st.warning(f"**Low Bias Configuration:**")
-                            st.write(f"- **Effect**: {bias_percentage*100:.0f}% of responses will be biased toward lower values")
-                            st.write(f"- **Strength**: {bias_strength:.1f}x increase in probability for bottom 2 scale values")
-                            st.write(f"- **Use case**: Simulate critical respondents, pessimistic views, or negative response bias")
-                        
-                        st.write(f"- **Unbiased responses**: {(1-bias_percentage)*100:.0f}% will follow original patterns")
-                        
+                            st.write(f"- **Effect**: {bias_percentage*100:.0f}% of responses will be biased toward lower values.")
+                            st.write(f"- **Strength**: {bias_strength:.1f}x increase in probability for bottom 2 scale values.")
+                            st.write(f"- **Use case**: Simulate critical respondents, pessimistic views, or negative response bias.")
+
+                        st.write(f"- **Unbiased responses**: {(1-bias_percentage)*100:.0f}% will follow original patterns.")
+
                         # Show example of how bias would affect a 5-point scale
                         st.write("**Example Effect on 5-point Scale (1-5):**")
                         example_original = {1: 0.1, 2: 0.2, 3: 0.4, 4: 0.2, 5: 0.1}
-                        
+
                         if bias_type == "high":
                             target_values = [4, 5]
                         else:
                             target_values = [1, 2]
-                        
+
                         example_biased = {}
                         for val, prob in example_original.items():
                             if val in target_values:
                                 example_biased[val] = prob * (1 + (bias_strength * bias_percentage))
                             else:
                                 example_biased[val] = prob * (1 - (bias_strength * bias_percentage * 0.5))
-                        
+
                         # Normalize
                         total_prob = sum(example_biased.values())
-                        example_biased = {k: v/total_prob for k, v in example_biased.items()}
-                        
+                        if total_prob > 0:
+                            example_biased = {k: v / total_prob for k, v in example_biased.items()}
+
                         comparison_df = pd.DataFrame({
-                            'Scale Value': [1, 2, 3, 4, 5],
-                            'Original': [example_original[i] for i in [1, 2, 3, 4, 5]],
-                            'Biased': [example_biased[i] for i in [1, 2, 3, 4, 5]]
+                            'Scale Value': list(range(1, 6)),
+                            'Original': [example_original.get(i, 0) for i in range(1, 6)],
+                            'Biased': [example_biased.get(i, 0) for i in range(1, 6)]
                         })
-                        
+
                         fig = go.Figure()
                         fig.add_trace(go.Bar(
                             x=comparison_df['Scale Value'],
@@ -1300,53 +1305,40 @@ if uploaded_file is not None:
                             height=400
                         )
                         st.plotly_chart(fig, use_container_width=True)
-                
+
                 # Simulation button
                 if st.button("🚀 Simulate Responses"):
                     with st.spinner(f"Simulating {num_simulations} responses..."):
-                        # Make sure all clustered items are in the weights
                         updated_weights = st.session_state.weights.copy()
-                        
-                        # Check for missing items from clusters that need to be included
-                        if st.session_state.clusters:
-                            all_cluster_items = set(item for items in st.session_state.clusters.values() for item in items)
-                            
-                            # Add any missing items with default distribution weights
-                            for item in all_cluster_items:
-                                if item not in updated_weights and item in df.columns:
-                                    try:
-                                        counts = df[item].value_counts(normalize=True).sort_index()
-                                        weight_dict = {str(val): prob for val, prob in counts.items()}
-                                        updated_weights[item] = {
-                                            'is_distribution': True,
-                                            'weights': weight_dict
-                                        }
-                                    except Exception as e:
-                                        st.warning(f"Could not create weights for {item}: {str(e)}")
-                                        updated_weights[item] = {'is_distribution': False, 'weight': 0.5}
-                        
-                        # Apply bias if enabled
+                        all_cluster_items = {item for items in st.session_state.get('clusters', {}).values() for item in items}
+
+                        for item in all_cluster_items:
+                            if item not in updated_weights and item in df.columns:
+                                try:
+                                    counts = df[item].value_counts(normalize=True).sort_index()
+                                    weight_dict = {str(val): prob for val, prob in counts.items()}
+                                    updated_weights[item] = {'is_distribution': True, 'weights': weight_dict}
+                                except Exception as e:
+                                    st.warning(f"Could not create weights for {item}: {str(e)}")
+                                    updated_weights[item] = {'is_distribution': False, 'weight': 0.5}
+
                         if enable_bias:
                             st.info(f"Applying {bias_type} bias (strength: {bias_strength}, affected: {bias_percentage*100:.0f}%)")
                             updated_weights = apply_bias_to_weights(
                                 updated_weights, bias_type, bias_strength, bias_percentage
                             )
-                        
-                        # Now simulate with complete weights
+
                         sim_data = simulate_responses(updated_weights, num_simulations, noise_level)
-                        
-                        # Reorder columns to match original data order
+
                         original_order = st.session_state.likert_items
                         available_cols = [col for col in original_order if col in sim_data.columns]
-                        
                         if available_cols:
                             sim_data = sim_data[available_cols]
-                        
+
                         st.session_state.sim_data = sim_data
-                        st.session_state.weights = updated_weights
                         st.success(f"🎯 Successfully generated {num_simulations} responses!")
-                
-                if st.session_state.sim_data is not None:
+
+                if st.session_state.get('sim_data') is not None:
                     st.subheader("Simulated Data Preview")
                     with st.expander("View simulated data", expanded=True):
                         total_rows = len(st.session_state.sim_data)
@@ -1354,20 +1346,20 @@ if uploaded_file is not None:
                         st.dataframe(st.session_state.sim_data.head(num_rows))
                         st.subheader("Summary Statistics")
                         st.dataframe(st.session_state.sim_data.describe())
-                    
+
                     # Compare original vs simulated data
                     st.subheader("Original vs Simulated Distributions")
                     compare_type = st.radio(
-                        "Comparison type", 
+                        "Comparison type",
                         ["Show one item in detail", "Show multiple items side by side"],
                         key="compare_type_radio"
                     )
-                    
+
                     items = list(st.session_state.weights.keys())
-                    
+
                     if compare_type == "Show one item in detail":
                         selected_item = st.selectbox("Select item to visualize", items)
-                        if selected_item:
+                        if selected_item and selected_item in df.columns and selected_item in st.session_state.sim_data.columns:
                             fig = go.Figure()
                             fig.add_trace(go.Histogram(x=df[selected_item], name="Original", opacity=0.7))
                             fig.add_trace(go.Histogram(x=st.session_state.sim_data[selected_item], name="Simulated", opacity=0.7))
@@ -1377,26 +1369,27 @@ if uploaded_file is not None:
                         selected_items = st.multiselect("Select items to compare (max 6 recommended)", options=items, default=items[:min(3, len(items))])
                         if selected_items:
                             cols = min(2, len(selected_items))
-                            rows = (len(selected_items) + 1) // 2
+                            rows = (len(selected_items) + cols - 1) // cols
                             fig = make_subplots(rows=rows, cols=cols, subplot_titles=[f"Item: {item}" for item in selected_items])
                             for i, item in enumerate(selected_items):
-                                row = i // cols + 1
-                                col = i % cols + 1
-                                fig.add_trace(go.Histogram(x=df[item], name=f"Original {item}", showlegend=(i==0)), row=row, col=col)
-                                fig.add_trace(go.Histogram(x=st.session_state.sim_data[item], name=f"Simulated {item}", showlegend=(i==0)), row=row, col=col)
-                            fig.update_layout(title="Distribution Comparison: Multiple Items", height=300 * rows, barmode="overlay")
+                                if item in df.columns and item in st.session_state.sim_data.columns:
+                                    row = i // cols + 1
+                                    col = i % cols + 1
+                                    fig.add_trace(go.Histogram(x=df[item], name=f"Original {item}", legendgroup="orig", showlegend=(i==0)), row=row, col=col)
+                                    fig.add_trace(go.Histogram(x=st.session_state.sim_data[item], name=f"Simulated {item}", legendgroup="sim", showlegend=(i==0)), row=row, col=col)
+                            fig.update_layout(title="Distribution Comparison: Multiple Items", height=300 * rows, barmode="overlay", legend_title_text='Dataset')
                             st.plotly_chart(fig, use_container_width=True)
-                    
+
                     # Download simulated data
-                    sim_csv = st.session_state.sim_data.to_csv(index=False)
-                    st.download_button("Download Simulated Data as CSV", sim_csv, file_name=f"simulated_data_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
-                    
+                    sim_csv = st.session_state.sim_data.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Download Simulated Data as CSV", sim_csv, file_name=f"simulated_data_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+
                     st.markdown("---")
                     st.subheader("Statistical Comparison: Real vs Simulated Data")
-                    
+
                     if st.button("Compare Real vs Simulated Data"):
                         st.session_state.show_stat_analysis = True
-                    
+
                     if st.session_state.get('show_stat_analysis', False):
                         try:
                             # Descriptive statistics comparison
@@ -1405,29 +1398,29 @@ if uploaded_file is not None:
                                 sim_desc = st.session_state.sim_data[st.session_state.likert_items].describe().T
                                 real_desc['var'] = df[st.session_state.likert_items].var()
                                 sim_desc['var'] = st.session_state.sim_data[st.session_state.likert_items].var()
-                                
-                                stats_diff = {metric: abs(real_desc[metric] - sim_desc[metric]).mean() for metric in ['mean', 'std', 'var'] if metric in real_desc}
-                                
+
+                                stats_diff = {metric: abs(real_desc[metric] - sim_desc[metric]).mean() for metric in ['mean', 'std', 'var'] if metric in real_desc and metric in sim_desc}
+
                                 st.subheader("Similarity Metrics")
                                 similarity_df = pd.DataFrame({
                                     'Statistic': list(stats_diff.keys()),
                                     'Mean Absolute Difference': list(stats_diff.values()),
-                                    'Similarity Score (%)': [max(0, 100 - 100 * diff) for diff in stats_diff.values()]
+                                    'Similarity Score (%)': [max(0, 100 - (diff / real_desc[stat].mean() * 100)) for stat, diff in stats_diff.items() if real_desc[stat].mean() != 0]
                                 })
                                 st.dataframe(similarity_df)
                                 overall_similarity = similarity_df['Similarity Score (%)'].mean()
-                                st.metric("Overall Statistical Similarity", f"{overall_similarity:.2f}%")
+                                st.metric("Overall Statistical Similarity", f"{overall_similarity:.2f}%", help="A measure of how closely the simulated data's mean, std, and variance match the original data.")
 
                             # Correlation structure comparison
                             with st.expander("Correlation Structure Comparison", expanded=True):
                                 real_corr = df[st.session_state.likert_items].corr()
                                 sim_corr = st.session_state.sim_data[st.session_state.likert_items].corr()
                                 corr_diff = abs(real_corr - sim_corr)
-                                
+
                                 mean_diff = corr_diff.values[np.triu_indices_from(corr_diff.values, k=1)].mean()
                                 corr_similarity = max(0, 100 - (mean_diff * 100))
-                                st.metric("Correlation Structure Similarity", f"{corr_similarity:.2f}%")
-                            
+                                st.metric("Correlation Structure Similarity", f"{corr_similarity:.2f}%", help="A measure of how well the relationships between items are preserved in the simulated data.")
+
                             # Reliability comparison
                             if st.session_state.clusters:
                                 with st.expander("Reliability Comparison", expanded=True):
@@ -1438,11 +1431,12 @@ if uploaded_file is not None:
                                         if len(items) > 1:
                                             orig_alpha = st.session_state.alphas.get(sc, 0)
                                             sim_alpha = cronbach_alpha(st.session_state.sim_data, items)
-                                            alpha_data.append({'Cluster': sc, 'Original Alpha': orig_alpha, 'Simulated Alpha': sim_alpha})
-                                    
-                                    alpha_df = pd.DataFrame(alpha_data)
-                                    st.dataframe(alpha_df)
-                                    
+                                            alpha_data.append({'Cluster': sc, 'Original Alpha': f"{orig_alpha:.3f}", 'Simulated Alpha': f"{sim_alpha:.3f}"})
+
+                                    if alpha_data:
+                                        alpha_df = pd.DataFrame(alpha_data)
+                                        st.dataframe(alpha_df)
+
                         except Exception as e:
                             st.error(f"Error performing statistical comparison: {str(e)}")
         

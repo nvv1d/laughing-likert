@@ -1238,7 +1238,50 @@ if uploaded_file is not None:
                             help="What percentage of responses should be affected by bias"
                         )
                         bias_percentage = bias_percentage_display / 100.0
-                
+                    
+                    # --- RESTORED HELPER BOX ---
+                    with st.expander("🔍 Bias Configuration Preview", expanded=True):
+                        if bias_type == "high":
+                            st.success(f"**High Bias Configuration:**")
+                            st.write(f"- **Effect**: {bias_percentage*100:.0f}% of responses will be biased toward higher values.")
+                            st.write(f"- **Strength**: {bias_strength:.1f}x increase in probability for top 2 scale values.")
+                            st.write(f"- **Use case**: Simulate high-achievers, optimistic respondents, or positive response bias.")
+                        else:
+                            st.warning(f"**Low Bias Configuration:**")
+                            st.write(f"- **Effect**: {bias_percentage*100:.0f}% of responses will be biased toward lower values.")
+                            st.write(f"- **Strength**: {bias_strength:.1f}x increase in probability for bottom 2 scale values.")
+                            st.write(f"- **Use case**: Simulate critical respondents, pessimistic views, or negative response bias.")
+
+                        st.write(f"- **Unbiased responses**: {(1-bias_percentage)*100:.0f}% will follow original patterns.")
+
+                        st.write("**Example Effect on 5-point Scale (1-5):**")
+                        example_original = {1: 0.1, 2: 0.2, 3: 0.4, 4: 0.2, 5: 0.1}
+                        
+                        target_values = [4, 5] if bias_type == "high" else [1, 2]
+                        
+                        example_biased = {}
+                        for val, prob in example_original.items():
+                            if val in target_values:
+                                example_biased[val] = prob * (1 + (bias_strength * bias_percentage))
+                            else:
+                                example_biased[val] = prob * (1 - (bias_strength * bias_percentage * 0.5))
+                        
+                        total_prob = sum(example_biased.values())
+                        if total_prob > 0:
+                            example_biased = {k: v/total_prob for k, v in example_biased.items()}
+                        
+                        comparison_df = pd.DataFrame({
+                            'Scale Value': list(range(1, 6)),
+                            'Original': [example_original.get(i, 0) for i in range(1, 6)],
+                            'Biased': [example_biased.get(i, 0) for i in range(1, 6)]
+                        })
+                        
+                        fig = go.Figure()
+                        fig.add_trace(go.Bar(x=comparison_df['Scale Value'], y=comparison_df['Original'], name='Original', marker_color='lightblue'))
+                        fig.add_trace(go.Bar(x=comparison_df['Scale Value'], y=comparison_df['Biased'], name='Biased', marker_color='orange'))
+                        fig.update_layout(title="Example: Bias Effect on Response Distribution", barmode='group', height=400)
+                        st.plotly_chart(fig, use_container_width=True)
+
                 # --- SIMULATION BUTTON ---
                 if st.button("🚀 Simulate Responses"):
                     with st.spinner(f"Simulating {num_simulations} responses..."):
@@ -1253,8 +1296,7 @@ if uploaded_file is not None:
                                     updated_weights[item] = {'is_distribution': True, 'weights': weight_dict}
                                 except Exception as e:
                                     st.warning(f"Could not create weights for {item}: {str(e)}")
-                                    updated_weights[item] = {'is_distribution': False, 'weight': 0.5}
-
+                        
                         if enable_bias:
                             st.info(f"Applying {bias_type} bias (strength: {bias_strength}, affected: {bias_percentage*100:.0f}%)")
                             updated_weights = apply_bias_to_weights(
@@ -1262,7 +1304,6 @@ if uploaded_file is not None:
                             )
 
                         sim_data = simulate_responses(updated_weights, num_simulations, noise_level)
-
                         original_order = st.session_state.likert_items
                         available_cols = [col for col in original_order if col in sim_data.columns]
                         if available_cols:
@@ -1321,30 +1362,20 @@ if uploaded_file is not None:
                                 corr_similarity = max(0, 100 - (mean_diff * 100))
                                 st.metric("Correlation Structure Similarity", f"{corr_similarity:.2f}%")
 
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    st.write("Original Correlation")
-                                    st.plotly_chart(px.imshow(real_corr, zmin=-1, zmax=1, color_continuous_scale="Blues"), use_container_width=True)
-                                with col2:
-                                    st.write("Simulated Correlation")
-                                    st.plotly_chart(px.imshow(sim_corr, zmin=-1, zmax=1, color_continuous_scale="Reds"), use_container_width=True)
-                                with col3:
-                                    st.write("Difference")
-                                    st.plotly_chart(px.imshow(corr_diff, zmin=0, zmax=1, color_continuous_scale="Greens"), use_container_width=True)
-
-                            # 3. Distribution Comparison (KL Divergence & JS Distance)
+                            # 3. Distribution Comparison (JS Distance)
                             with st.expander("Distribution Comparison", expanded=True):
                                 js_distances = {}
                                 for item in st.session_state.likert_items:
-                                    real_dist = df[item].value_counts(normalize=True).sort_index()
-                                    sim_dist = st.session_state.sim_data[item].value_counts(normalize=True).sort_index()
-                                    all_values = sorted(set(real_dist.index) | set(sim_dist.index))
-                                    real_probs = np.array([real_dist.get(v, 1e-10) for v in all_values])
-                                    sim_probs = np.array([sim_dist.get(v, 1e-10) for v in all_values])
-                                    
-                                    m_dist = 0.5 * (real_probs + sim_probs)
-                                    js_div = 0.5 * np.sum(real_probs * np.log(real_probs / m_dist)) + 0.5 * np.sum(sim_probs * np.log(sim_probs / m_dist))
-                                    js_distances[item] = np.sqrt(js_div)
+                                    if item in st.session_state.sim_data.columns:
+                                        real_dist = df[item].value_counts(normalize=True).sort_index()
+                                        sim_dist = st.session_state.sim_data[item].value_counts(normalize=True).sort_index()
+                                        all_values = sorted(set(real_dist.index) | set(sim_dist.index))
+                                        real_probs = np.array([real_dist.get(v, 1e-10) for v in all_values])
+                                        sim_probs = np.array([sim_dist.get(v, 1e-10) for v in all_values])
+                                        
+                                        m_dist = 0.5 * (real_probs + sim_probs)
+                                        js_div = 0.5 * np.sum(real_probs * np.log(real_probs / m_dist)) + 0.5 * np.sum(sim_probs * np.log(sim_probs / m_dist))
+                                        js_distances[item] = np.sqrt(js_div)
 
                                 divergence_df = pd.DataFrame.from_dict(js_distances, orient='index', columns=['JS Distance'])
                                 divergence_df['Similarity (%)'] = divergence_df['JS Distance'].apply(lambda d: max(0, 100 - (d * 100)))
@@ -1366,7 +1397,7 @@ if uploaded_file is not None:
                                     if alpha_data:
                                         alpha_df = pd.DataFrame(alpha_data)
                                         alpha_df['Similarity (%)'] = alpha_df.apply(lambda row: max(0, 100 - (abs(row['Original Alpha'] - row['Simulated Alpha']) * 100)), axis=1)
-                                        st.dataframe(alpha_df)
+                                        st.dataframe(alpha_df.sort_values('Similarity (%)', ascending=False))
                                         reliability_similarity = alpha_df['Similarity (%)'].mean()
                                         st.metric("Overall Reliability Similarity", f"{reliability_similarity:.2f}%")
 
@@ -1377,7 +1408,7 @@ if uploaded_file is not None:
                                 'Descriptive': overall_similarity,
                                 'Correlation': corr_similarity,
                                 'Distribution': dist_similarity,
-                                'Reliability': reliability_similarity if 'reliability_similarity' in locals() else None
+                                'Reliability': locals().get('reliability_similarity')
                             }
                             final_scores = {k: v for k, v in overall_metrics.items() if v is not None}
                             
@@ -1387,24 +1418,10 @@ if uploaded_file is not None:
                                     mode = "gauge+number",
                                     value = final_score,
                                     title = {'text': "Overall Simulation Quality"},
-                                    gauge = {
-                                        'axis': {'range': [0, 100]},
-                                        'bar': {'color': "royalblue"},
-                                        'steps': [
-                                            {'range': [0, 70], 'color': "lightgray"},
-                                            {'range': [70, 85], 'color': "lightgreen"},
-                                            {'range': [85, 100], 'color': "green"}
-                                        ]}
+                                    gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#3366CC"}}
                                 ))
-                                fig.update_layout(height=300)
+                                fig.update_layout(height=250)
                                 st.plotly_chart(fig, use_container_width=True)
-
-                                if final_score >= 85:
-                                    st.success("🌟 Excellent simulation quality! The simulated data closely matches the original.")
-                                elif final_score >= 70:
-                                    st.success("✅ Good simulation quality. The data captures most patterns well.")
-                                else:
-                                    st.warning("⚠️ Fair simulation quality. The data has notable differences. Consider adjusting simulation parameters.")
                         
                         except Exception as e:
                             st.error(f"An error occurred during statistical comparison: {e}")
